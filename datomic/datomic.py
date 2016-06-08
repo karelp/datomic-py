@@ -646,7 +646,7 @@ def dump_edn_val(v):
   if isinstance(v, (str, bytes)):
     return json.dumps(v)
   elif isinstance(v, E):            
-    return bytes(v)
+    return str(v.eid)
   else:                             
     return dumps(v)
 
