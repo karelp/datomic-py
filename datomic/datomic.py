@@ -2,17 +2,15 @@
 """
 """
 import datetime
-import urllib3
-
-from pprint import pprint as pp
-from termcolor import colored as cl
+import json
 import logging
+from pprint import pprint as pp
 
-from schema import Schema
+import urllib3
+from termcolor import colored as cl
 
 from clj import dumps, loads
-import json
-from itertools import izip
+from datomic.schema import Schema
 
 
 class DB(object):
@@ -53,7 +51,7 @@ class DB(object):
     >>> db.create()
     True
     """
-    data = data={"db-name":self.db}
+    data = {"db-name":self.db}
     self.rest('POST', self.uri_str, status_codes=(200,201), data=data)
     return True
 
@@ -111,7 +109,7 @@ class DB(object):
     ops = []
     for op in args:
       if isinstance(op, list):            ops += op
-      elif isinstance(op, (str,unicode)): ops.append(op)
+      elif isinstance(op, (str,bytes)): ops.append(op)
     if 'debug' in kwargs: pp(ops)
     tx_proc ="[ %s ]" % "".join(ops)
     x = self.rest('POST', self.uri_db, data={"tx-data": tx_proc})
@@ -123,7 +121,7 @@ class DB(object):
     ta = datetime.datetime.now()
     rs = self.rest('GET', self.uri_db + '-/entity', data={'e':int(eid)}, parse=True)
     tb =  datetime.datetime.now() - ta
-    print cl('<<< fetched entity %s in %sms' % (eid, tb.microseconds/1000.0), 'cyan')
+    print(cl('<<< fetched entity %s in %sms' % (eid, tb.microseconds / 1000.0), 'cyan'))
     return rs
 
   def retract(self, e, a, v):
@@ -133,7 +131,7 @@ class DB(object):
     ret = u"[:db/retract %i :%s %s]" % (e, a, dump_edn_val(v))
     rs = self.tx(ret)
     tb = datetime.datetime.now() - ta
-    print cl('<<< retracted %s,%s,%s in %sms' % (e,a,v, tb.microseconds/1000.0), 'cyan')
+    print(cl('<<< retracted %s,%s,%s in %sms' % (e, a, v, tb.microseconds / 1000.0), 'cyan'))
     return rs
 
 
@@ -146,10 +144,10 @@ class DB(object):
     http://docs.datomic.com/clojure/index.html#datomic.api/datoms
     """
     assert index in ['aevt','eavt','avet','vaet'], "non-existant index"
-    data = {'index':   index, 
+    data = {'index':   index,
             'a':       ':{0}'.format(a) if a else '',
             'v':       dump_edn_val(v) if v else '',
-            'e':       int(e) if e else '', 
+            'e':       int(e) if e else '',
             'offset':  offset or 0,
             'start':   start,
             'end':     end,
@@ -166,8 +164,8 @@ class DB(object):
       if not len(rs):
         rs = False
       tb = datetime.datetime.now() - ta
-      print cl('<<< fetched %i datoms at offset %i in %sms' % (
-        len(rs), data['offset'], tb.microseconds/1000.0), 'cyan')
+      print(cl('<<< fetched %i datoms at offset %i in %sms' % (
+        len(rs), data['offset'], tb.microseconds / 1000.0), 'cyan'))
       for r in rs: yield r
       data['offset'] += chunk
 
@@ -176,18 +174,19 @@ class DB(object):
     """
     r = self.pool.request_encode_body(method, uri, fields=data, encode_multipart=False)
     if not r.status in (status_codes if status_codes else (200,201)):
-      print cl('\n---------\nURI / REQUEST TYPE : %s %s' % (uri, method), 'red')
-      print cl(data, 'red')
-      print r.headers
-      raise Exception, "Invalid status code: %s" % r.status
+      print(cl('\n---------\nURI / REQUEST TYPE : %s %s' % (uri, method), 'red'))
+      print(cl(data, 'red'))
+      print(r.headers)
+      print(r.data)
+      raise Exception("Invalid status code: %s" % r.status)
     if not parse: 
       " return raw urllib3 response"
       return r
     if not self.debug_loads:
       " return parsed edn"
-      return loads(r.data)
+      return loads(str(r.data, "utf-8"))
     "time edn parse time and return parsed edn"
-    return self.debug(loads, args=(r_data, ), kwargs={},
+    return self.debug(loads, args=(r.data, ), kwargs={},
           fmt='<<< parsed edn datastruct in {ms}ms', color='green')
 
   def debug(self, defn, args, kwargs, fmt=None, color='green'):
@@ -199,7 +198,7 @@ class DB(object):
     fmt = fmt or "processed {defn} in {ms}ms"
     logmsg = fmt.format(ms=tb.microseconds/1000.0, defn=defn)
     "terminal output"
-    print cl(logmsg, color)
+    print(cl(logmsg, color))
     "logging output"
     logging.debug(logmsg)
     return rs
@@ -251,7 +250,7 @@ class Query(object):
   def __repr__(self):
     return " ".join([str(self._find), str(self._in), str(self._where)])
   
-  def find(self, *args, **kwargs):
+  def find(self, *args, **kwargs) -> 'Query':
     " :find "
     if args[0] is all:
       pass # finds all
@@ -259,7 +258,7 @@ class Query(object):
       [(self._find.append(x)) for x in args]
     return self
   
-  def where(self, *args, **kwargs):
+  def where(self, *args, **kwargs) -> 'Query':
     " :where "
     [(self._where.append(x)) for x in args]
     return self
@@ -268,7 +267,7 @@ class Query(object):
     self._where.append("(fulltext $ {0} {1}) [[{2} {3}]]".format(attr, s, e, v))
     self._input.append((s, q))
 
-  def param(self, *args, **kwargs):
+  def param(self, *args, **kwargs) -> 'Query':
     " :in   "
     for first, second in pairwise(args):
       if isinstance(second, list):
@@ -289,7 +288,7 @@ class Query(object):
         self._input.append((first,second)) 
     return self
 
-  def limit(self, limit):
+  def limit(self, limit) -> 'Query':
     self._limit = limit
     return self
   def offset(self, offset):
@@ -341,9 +340,9 @@ class Query(object):
       inputs = u":in ${0}".format(inputs)
     " :where "
     for where in self._where:
-      if isinstance(where, (str,unicode)): 
+      if isinstance(where, (str,bytes)):
         wheres += u"[{0}]".format(where)
-      elif isinstance(where, (list)):
+      elif isinstance(where, list):
         wheres += u" ".join([u"[{0}]".format(w) for w in where])
     " find: "
     if self._find == []: #find all
@@ -447,7 +446,7 @@ class E(dict):
 
   def __getattr__(self, attr, default=None):
     val = self.__dict__.get(attr, default)
-    if val: return self.vpar(v)
+    if val: return self.vpar(val)
 
     rs, ns = {}, '{0}/'.format(attr)
     for k,v in self.__dict__.iteritems():
@@ -516,13 +515,14 @@ class TX(object):
     """ Accumulate datums for the transaction
 
     Start a transaction on an existing db connection
+    >>> db = ...
     >>> tx = TX(db)
 
     Get get an entity object with a tempid
-    >>> ref = add()
-    >>> ref = add(0)
-    >>> ref = add(None)
-    >>> ref = add(False)
+    >>> ref = tx.add()
+    >>> ref = tx.add(0)
+    >>> ref = tx.add(None)
+    >>> ref = tx.add(False)
 
     Entity id passed as first argument (int|long)
     >>> tx.add(1, 'thing/name', 'value')
@@ -541,7 +541,7 @@ class TX(object):
     assert self.resp is None, "Transaction already committed"
     entity, av_pairs, args = None, [], list(args)
     if len(args):
-      if isinstance(args[0], (int, long)): 
+      if isinstance(args[0], int):
         " first arg is an entity or tempid"
         entity = E(args[0], tx=self)
       elif isinstance(args[0], E):
@@ -562,7 +562,7 @@ class TX(object):
       self.ctmpid -= 1
     " a,v from kwargs"
     if len(args) == 0 and kwargs: 
-      for a,v in kwargs.iteritems():
+      for a,v in kwargs.items():
         self.addeav(entity, a, v)
     " a,v from args "
     if len(args):
@@ -580,7 +580,7 @@ class TX(object):
           continue
         elif isinstance(second, dict):
           " shorthand used: blah/, dict "
-          for a,v in second.iteritems():
+          for a,v in second.items():
             self.addeav(entity, "%s%s" % (first, a), v)
             continue
         elif isinstance(second, (list, tuple)):
@@ -589,7 +589,7 @@ class TX(object):
             self.addeav(entity, "%s%s" % (first, a), v)
             continue
         else:
-          raise Exception, "invalid pair: %s : %s" % (first,second)
+          raise Exception("invalid pair: %s : %s" % (first, second))
     "pass back the entity so it can be resolved after tx()"
     return entity
   
@@ -643,14 +643,14 @@ class TX(object):
 
 def dump_edn_val(v):
   " edn simple value dump"
-  if isinstance(v, (str, unicode)): 
+  if isinstance(v, (str, bytes)):
     return json.dumps(v)
   elif isinstance(v, E):            
-    return unicode(v)
+    return bytes(v)
   else:                             
     return dumps(v)
 
 def pairwise(iterable):
   "s -> (s0,s1), (s2,s3), (s4, s5), ..."
   a = iter(iterable)
-  return izip(a, a)
+  return zip(a, a)

@@ -26,11 +26,11 @@ __all__ = [
   'ENUM',
   ]
 
-from datomic import (
+from datomic.datomic import (
   DB,
   )
 
-from schema import (
+from datomic.schema import (
   Schema,
   STRING,
   KEYWORD,

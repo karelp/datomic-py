@@ -94,14 +94,14 @@ class Schema(object):
   def build_attributes(self, struct):
     for outer in struct:
       for row in outer:
-        if type(row) in (str,unicode):
+        if type(row) in (str,bytes):
           ns = row
           #setattr(self.tx, ns, Ns(ns, self.tx))
         elif type(row) in (list,tuple):
           self.build_attribute(ns, row)
           #setattr(getattr(self.tx, ns), row[0], None)
         else:
-          raise Exception, 'Invalid schema definition at row %s' % row
+          raise Exception('Invalid schema definition at row %s' % row)
 
   def build_attribute(self, ns, struct):
     attrs, enums = [],[]
