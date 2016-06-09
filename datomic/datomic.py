@@ -112,7 +112,6 @@ class DB(object):
       elif isinstance(op, (str,bytes)): ops.append(op)
     if 'debug' in kwargs: pp(ops)
     tx_proc ="[ %s ]" % "".join(ops)
-    print(tx_proc.replace("}", "}\n"))
     x = self.rest('POST', self.uri_db, data={"tx-data": tx_proc})
     return x
   
