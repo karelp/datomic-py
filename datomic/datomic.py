@@ -112,6 +112,7 @@ class DB(object):
       elif isinstance(op, (str,bytes)): ops.append(op)
     if 'debug' in kwargs: pp(ops)
     tx_proc ="[ %s ]" % "".join(ops)
+    print(tx_proc.replace("}", "}\n"))
     x = self.rest('POST', self.uri_db, data={"tx-data": tx_proc})
     return x
   
@@ -581,7 +582,11 @@ class TX(object):
         elif isinstance(second, dict):
           " shorthand used: blah/, dict "
           for a,v in second.items():
-            self.addeav(entity, "%s%s" % (first, a), v)
+            if isinstance(v, (list, tuple)):
+              for singlev in v:
+                self.addeav(entity, "%s%s" % (first, a), singlev)
+            else:
+              self.addeav(entity, "%s%s" % (first, a), v)
             continue
         elif isinstance(second, (list, tuple)):
           " shorthand used: blah/, list|tuple "
@@ -646,7 +651,7 @@ def dump_edn_val(v):
   if isinstance(v, (str, bytes)):
     return json.dumps(v)
   elif isinstance(v, E):            
-    return str(v.eid)
+    return v.__unicode__()
   else:                             
     return dumps(v)
 
